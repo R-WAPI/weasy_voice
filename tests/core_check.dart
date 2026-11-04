@@ -2,6 +2,7 @@ import '../lib/src/word_tracker.dart';
 import '../lib/src/scroll_motion.dart';
 import '../lib/src/line_scroll_plan.dart';
 import '../lib/src/reading_rhythm.dart';
+import '../lib/src/flow_motion.dart';
 
 void check(bool condition) { if (!condition) throw StateError('Core check failed'); }
 void main() {
@@ -100,5 +101,35 @@ void main() {
   check(faster.wordsPerSecond == learned);
   faster.clearHistory(); faster.observe(0, 102); // Manual rewind preserves the user's tempo.
   check(faster.wordsPerSecond == learned);
+  final flow = WeasyFlowMotion()..lineHeight = 32;
+  var movingFrames = 0;
+  for (var frame = 0; frame < 360; frame++) {
+    if (frame % 30 == 0) flow.observe(frame / 60 * 20, 20);
+    final before = flow.position;
+    flow.step(1/60, 1000);
+    check(flow.position >= before && flow.position - before <= 96/60 + 0.001);
+    if (frame > 60 && flow.position - before > 0.05) movingFrames++;
+  }
+  check(movingFrames > 280); // No repeated stops between half-second ASR updates.
+  final burstStart = flow.position;
+  flow.observe(burstStart + 160, 20);
+  final burstVelocity = flow.velocity;
+  flow.step(1/60, 1000);
+  check(flow.position - burstStart <= 96/60 + 0.001);
+  check((flow.velocity - burstVelocity).abs() <= 256/60 + 0.001);
+  for (var i = 0; i < 600; i++) { flow.step(1/60, 1000); }
+  check(flow.settled && flow.position <= burstStart + 160 + 12.801);
+  final stopped = flow.position;
+  flow.step(1/60, 1000); check((flow.position - stopped).abs() < 0.001);
+  flow.reset(10); // Manual rewind must discard prediction and velocity.
+  flow.step(1/60, 1000); check(flow.position == 10 && flow.settled);
+  flow.observe(100, 20);
+  for (var i = 0; i < 600; i++) { flow.step(1/60, 50); }
+  check(flow.position == 50 && flow.settled);
+  final flow30 = WeasyFlowMotion(), flow60 = WeasyFlowMotion();
+  flow30.observe(100, 20); flow60.observe(100, 20);
+  for (var i = 0; i < 30; i++) { flow30.step(1/30, 1000); }
+  for (var i = 0; i < 60; i++) { flow60.step(1/60, 1000); }
+  check((flow30.position - flow60.position).abs() < 0.1);
   print('Dart core checks passed');
 }

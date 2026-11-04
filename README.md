@@ -45,3 +45,11 @@ Licencek: assets/LICENSE-* és NOTICE-android-runtime.txt.
 A natív JNI forrás a native könyvtárban található; újrafordításhoz a fenti pontos whisper.cpp forrás, Android NDK r28c, CMake és ARM64 Android33 cél kell. A CMake WHISPER_SOURCE változója adja meg a whisper.cpp helyét. A ZIP nem tartalmaz fejlesztői eszközöket vagy aláírókulcsot.
 
 FlutterFlow hivatalos leírás: https://docs.flutterflow.io/concepts/advanced/method-channels/
+
+## 0.1.5 – folyamatos súgómozgás
+
+A súgó a vizuális soron belüli szópozíciót folyamatos célponttá alakítja. Egyetlen, gyorsulás- és sebességkorlátos követő mozgatja a szöveget; új felismerési eredménykor nem indul újra soronkénti animáció. A meglévő magyar szóegyeztetés és szürkülés továbbra is csak felismert szavakon alapul.
+
+A két eredmény közötti megjelenítési becslés legfeljebb 650 ms-ig és 0,4 sormagasságig tart. Ezután a mozgás a korlátozott célpontra fékez. Ez nem külön beszéd/csend-detektor: rövid kifutás lehetséges, és hosszabb felismerési késést nem tud teljesen elfedni. Kézi görgetés és szünet törli a mozgás becslését. A natív mikrofon- és videóút változatlan.
+
+Az automatikus próbák ellenőrzik a folytonosságot fél másodpercenként érkező eredmények mellett, a nagy felismerési ugrások sebesség- és gyorsuláskorlátját, az eredmények elmaradásakor történő megállást, a kézi visszaállítást, a dokumentum végét és a 30/60 Hz egyezését. A telefonos olvashatóság új APK-val ellenőrizendő.

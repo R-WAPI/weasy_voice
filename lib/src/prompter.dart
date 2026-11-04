@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import '../weasy_voice.dart';
-import 'line_scroll_plan.dart';
+import 'flow_motion.dart';
 import 'reading_rhythm.dart';
 
 /// Place over CameraPreview. It is never drawn into the camera's video track.
@@ -23,12 +23,12 @@ class WeasyPrompter extends StatefulWidget {
 class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
   final _textKey = GlobalKey();
-  final _linePlan = WeasyLineScrollPlan();
+  final _flow = WeasyFlowMotion();
+  final List<double> _wordTops = [];
+  double _lineHeight = 32;
   final _rhythm = WeasyReadingRhythm();
   final _clock = Stopwatch()..start();
   double _layoutWidth = -1, _layoutHeight = -1, _firstLineTop = 0;
-  double _stepFrom = 0, _stepTo = 0, _stepProgress = 0;
-  double _stepSeconds = 0.7;
   late WeasyWordTracker _tracker;
   late Ticker _ticker;
   StreamSubscription<WeasyVoiceEvent>? _subscription;
@@ -46,10 +46,13 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   }
   void _phaseChanged() {
     final current = widget.controller.phase.value;
-    if (current != WeasyCapturePhase.recording) { _ticker.stop(); _rhythm.clearHistory(); }
+    if (current != WeasyCapturePhase.recording) {
+      _ticker.stop(); _rhythm.clearHistory();
+      if (_scroll.hasClients) _flow.reset(_scroll.offset);
+    }
     if (_lastPhase == WeasyCapturePhase.complete && current == WeasyCapturePhase.idle) {
       _tracker = WeasyWordTracker(widget.text);
-      _linePlan.reset(0);
+      _flow.reset(0);
       if (_scroll.hasClients) _scroll.jumpTo(0);
       setState(() {});
     }
@@ -89,7 +92,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       _tracker = WeasyWordTracker(widget.text);
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        if (_scroll.hasClients) { _scroll.jumpTo(0); _linePlan.reset(0); }
+        if (_scroll.hasClients) { _scroll.jumpTo(0); _flow.reset(0); }
         await _resetRecognition();
       });
     }
@@ -112,33 +115,32 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       final lines = paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: widget.text.length));
       if (lines.isEmpty) return;
       _firstLineTop = lines.first.top;
-      _linePlan.layout(lines.map((box) => box.top - _firstLineTop), _scroll.position.maxScrollExtent);
+      final tops = lines.map((box) => box.top).toSet().toList()..sort();
+      _lineHeight = tops.length > 1 ? tops[1] - tops[0] : widget.fontSize * 1.3;
+      _wordTops.clear();
+      for (final start in _tracker.starts) {
+        final box = paragraph.getBoxesForSelection(TextSelection(baseOffset: start,
+            extentOffset: math.min(start + 1, widget.text.length)));
+        _wordTops.add(box.isEmpty ? (_wordTops.isEmpty ? 0 : _wordTops.last)
+            : box.first.top - _firstLineTop);
+      }
+      _flow.lineHeight = _lineHeight;
+      _flow.reset(_scroll.offset);
       _layoutWidth = paragraph.size.width; _layoutHeight = paragraph.size.height;
     }
-    final offset = math.min(_tracker.readCharacterEnd, widget.text.length - 1);
-    final boxes = paragraph.getBoxesForSelection(TextSelection(baseOffset: offset, extentOffset: offset + 1));
-    if (boxes.isEmpty) return;
-    // Only entering the next visual line changes the target. Finishing words
-    // inside the current line changes their color, never the scroll position.
-    final target = (boxes.first.top - _firstLineTop)
+    if (_wordTops.isEmpty || _tracker.next == 0) return;
+    final index = math.min(_tracker.next, _wordTops.length - 1);
+    final top = _wordTops[index];
+    var first = index, last = index + 1;
+    while (first > 0 && (_wordTops[first - 1] - top).abs() < 1) { first--; }
+    while (last < _wordTops.length && (_wordTops[last] - top).abs() < 1) { last++; }
+    final count = last - first;
+    final fraction = ((_tracker.next - first) / count).clamp(0.0, 1.0);
+    // Advance within a wrapped line, keeping the current word below the lens.
+    final target = (top + fraction * _lineHeight - _lineHeight * 0.75)
         .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
-    _linePlan.aim(target);
-    if (!_ticker.isActive) _beginNextLine();
-  }
-  void _beginNextLine() {
-    final next = _linePlan.nextStop(_scroll.offset);
-    if (next == null) { _ticker.stop(); return; }
-    _stepFrom = _scroll.offset; _stepTo = next; _stepProgress = 0;
-    final paragraph = _paragraph;
-    var wordCount = 3;
-    if (paragraph != null) {
-      final from = paragraph.getPositionForOffset(Offset(0, _stepFrom + _firstLineTop + 1)).offset;
-      final to = paragraph.getPositionForOffset(Offset(0, _stepTo + _firstLineTop + 1)).offset;
-      wordCount = _tracker.starts.where((x) => x >= from && x < to).length;
-      if (wordCount == 0) wordCount = 1;
-    }
-    _stepSeconds = _rhythm.durationForLine(wordCount,
-        queuedLines: _linePlan.queuedLines(_scroll.offset)).inMicroseconds / 1000000.0;
+    final pace = _rhythm.wordsPerSecond * _lineHeight / count;
+    _flow.observe(target, _tracker.next >= _wordTops.length ? 0 : pace);
     if (!_ticker.isActive) { _previous = Duration.zero; _ticker.start(); }
   }
   void _frame(Duration time) {
@@ -146,18 +148,15 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
         widget.controller.phase.value != WeasyCapturePhase.recording) { _ticker.stop(); return; }
     final dt = _previous == Duration.zero ? 1.0/60 : (time - _previous).inMicroseconds / 1000000.0;
     _previous = time;
-    _stepProgress = (_stepProgress + dt.clamp(0.0, 0.1) / _stepSeconds).clamp(0.0, 1.0).toDouble();
-    final eased = Curves.easeInOutSine.transform(_stepProgress);
-    final y = (_stepFrom + (_stepTo - _stepFrom) * eased)
-        .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
-    _scroll.jumpTo(y);
-    if (_stepProgress == 1) _beginNextLine();
+    final y = _flow.step(dt, _scroll.position.maxScrollExtent);
+    if ((y - _scroll.offset).abs() > 0.001) _scroll.jumpTo(y);
+    if (_flow.settled) _ticker.stop();
   }
   void _touchStart() {
     _generation++; _touching = true; _manual = true; _accept = false;
     _rhythm.clearHistory();
     _ticker.stop(); _settle?.cancel();
-    if (_scroll.hasClients) _linePlan.reset(_scroll.offset);
+    if (_scroll.hasClients) _flow.reset(_scroll.offset);
     unawaited(widget.controller.suspendRecognition().catchError((Object e) {
       if (mounted) widget.onError?.call(e.toString()); return -1;
     }));
@@ -174,7 +173,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     final position = paragraph.getPositionForOffset(Offset(0, y));
     // Map the viewport top to the first word on that visual line.
     _tracker.resetAtCharacter(position.offset);
-    _linePlan.reset(_scroll.offset);
+    _flow.reset(_scroll.offset);
     _manual = false; setState(() {});
     widget.onPositionChanged?.call(_tracker.readCharacterEnd);
     await _resetRecognition();
