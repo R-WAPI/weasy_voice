@@ -57,9 +57,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       setState(() {});
     }
     _lastPhase = current;
-    if (current == WeasyCapturePhase.recording) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _aimAtReadingPoint());
-    }
+    // Resume waits for a fresh matching transcript before moving again.
   }
   void _listen() {
     _subscription = widget.controller.events.listen((event) {

@@ -32,6 +32,10 @@ class WeasyFlowMotion {
       remaining -= dt; _age += dt;
       final target = math.min(maximum, _target);
       final distance = math.max(0.0, target - position);
+      if (distance < 0.01 && velocity < 0.05 && _age >= 0.65) {
+        position = target; velocity = 0;
+        continue;
+      }
       final acceleration = lineHeight * 8;
       final cruise = _age < 0.65 ? _pace : 0.0;
       final desired = math.min(lineHeight * 3,
