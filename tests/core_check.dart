@@ -131,5 +131,22 @@ void main() {
   for (var i = 0; i < 30; i++) { flow30.step(1/30, 1000); }
   for (var i = 0; i < 60; i++) { flow60.step(1/60, 1000); }
   check((flow30.position - flow60.position).abs() < 0.1);
+  final start = WeasyFlowMotion(predictionSeconds: 1.4, predictionLines: 0.85);
+  start.armStartDelay();
+  for (var i = 0; i < 180; i++) { start.step(1/60, 1000); }
+  check(start.position == 0); // No speech: the startup clock has not started.
+  start.reset(0); // Layout must not discard the startup delay.
+  start.observe(32, 20);
+  for (var i = 0; i < 78; i++) { start.step(1/60, 1000); }
+  check(start.position == 0 && !start.settled); // 1.3 seconds.
+  start.observe(48, 20); // New words must not restart the delay.
+  for (var i = 0; i < 12; i++) { start.step(1/60, 1000); }
+  check(start.position > 0); // Moving by 1.5 seconds.
+  for (var i = 0; i < 600; i++) { start.step(1/60, 1000); }
+  check(start.settled && start.position <= 48 + 32 * 0.85 + 0.001);
+  start.reset(10); start.observe(30, 20); start.step(1/60, 1000);
+  check(start.position > 10); // No repeated delay after a manual rewind/resume.
+  start.reset(0); start.armStartDelay(); start.observe(32, 20);
+  start.step(0.1, 1000); check(start.position == 0); // A new take re-arms it.
   print('Dart core checks passed');
 }

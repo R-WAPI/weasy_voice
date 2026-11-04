@@ -53,3 +53,8 @@ A súgó a vizuális soron belüli szópozíciót folyamatos célponttá alakít
 A két eredmény közötti megjelenítési becslés legfeljebb 650 ms-ig és 0,4 sormagasságig tart. Ezután a mozgás a korlátozott célpontra fékez. Ez nem külön beszéd/csend-detektor: rövid kifutás lehetséges, és hosszabb felismerési késést nem tud teljesen elfedni. Kézi görgetés és szünet törli a mozgás becslését. A natív mikrofon- és videóút változatlan.
 
 Az automatikus próbák ellenőrzik a folytonosságot fél másodpercenként érkező eredmények mellett, a nagy felismerési ugrások sebesség- és gyorsuláskorlátját, az eredmények elmaradásakor történő megállást, a kézi visszaállítást, a dokumentum végét és a 30/60 Hz egyezését. A telefonos olvashatóság új APK-val ellenőrizendő.
+## 0.1.6 – 1,4 másodperces indulás és felső olvasási sáv
+
+A mozgás első biztos szóegyezéstől számított 1,4 másodperc után indul. Ez nem az első hang fizikai időpontja: a felismerés saját késése hozzáadódik. Új egyezés nem indítja újra az időzítést; kézi visszagörgetés és folytatás nem kap új késleltetést. Új felvétel vagy lecserélt szöveg újraindítja az indulási várakozást.
+
+Az olvasási célpont 0,6 sorral feljebb kerül. A mozgásbecslés két egyezés között legfeljebb 1,4 másodpercig és 0,85 sormagasságig tart; a szürkülés továbbra is kizárólag szóegyezést követ. Csendfelismerés nincs hozzáadva, rövid kifutás ezért lehetséges. A 0.1.5 visszaállási pontja: a7a02e207f76aca63016a63c0a0b45b07fbd1d84.

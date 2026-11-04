@@ -23,7 +23,7 @@ class WeasyPrompter extends StatefulWidget {
 class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
   final _textKey = GlobalKey();
-  final _flow = WeasyFlowMotion();
+  final _flow = WeasyFlowMotion(predictionSeconds: 1.4, predictionLines: 0.85);
   final List<double> _wordTops = [];
   double _lineHeight = 32;
   double _topInset = 40;
@@ -41,6 +41,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
 
   @override void initState() {
     super.initState(); _tracker = WeasyWordTracker(widget.text);
+    _flow.armStartDelay();
     _ticker = createTicker(_frame); _listen();
     _lastPhase = widget.controller.phase.value;
     widget.controller.phase.addListener(_phaseChanged);
@@ -54,6 +55,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     if (_lastPhase == WeasyCapturePhase.complete && current == WeasyCapturePhase.idle) {
       _tracker = WeasyWordTracker(widget.text);
       _flow.reset(0);
+      _flow.armStartDelay();
       if (_scroll.hasClients) _scroll.jumpTo(0);
       setState(() {});
     }
@@ -89,6 +91,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       _rhythm.clearHistory();
       _layoutWidth = -1;
       _tracker = WeasyWordTracker(widget.text);
+      _flow.armStartDelay();
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         if (_scroll.hasClients) { _scroll.jumpTo(0); _flow.reset(0); }
@@ -136,7 +139,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     final count = last - first;
     final fraction = ((_tracker.next - first) / count).clamp(0.0, 1.0);
     // Advance within a wrapped line, keeping the current word below the lens.
-    final target = (top + fraction * _lineHeight - _lineHeight * 0.75)
+    final target = (top + fraction * _lineHeight - _lineHeight * 0.15)
         .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
     final pace = _rhythm.wordsPerSecond * _lineHeight / count;
     _flow.observe(target, _tracker.next >= _wordTops.length ? 0 : pace);
