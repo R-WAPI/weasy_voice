@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import '../weasy_voice.dart';
 import 'line_scroll_plan.dart';
+import 'reading_rhythm.dart';
 
 /// Place over CameraPreview. It is never drawn into the camera's video track.
 class WeasyPrompter extends StatefulWidget {
@@ -23,8 +24,11 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   final _scroll = ScrollController();
   final _textKey = GlobalKey();
   final _linePlan = WeasyLineScrollPlan();
+  final _rhythm = WeasyReadingRhythm();
+  final _clock = Stopwatch()..start();
   double _layoutWidth = -1, _layoutHeight = -1, _firstLineTop = 0;
   double _stepFrom = 0, _stepTo = 0, _stepProgress = 0;
+  double _stepSeconds = 0.7;
   late WeasyWordTracker _tracker;
   late Ticker _ticker;
   StreamSubscription<WeasyVoiceEvent>? _subscription;
@@ -42,7 +46,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   }
   void _phaseChanged() {
     final current = widget.controller.phase.value;
-    if (current != WeasyCapturePhase.recording) _ticker.stop();
+    if (current != WeasyCapturePhase.recording) { _ticker.stop(); _rhythm.clearHistory(); }
     if (_lastPhase == WeasyCapturePhase.complete && current == WeasyCapturePhase.idle) {
       _tracker = WeasyWordTracker(widget.text);
       _linePlan.reset(0);
@@ -63,6 +67,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       if (!_accept || _manual || event.type != 'transcript' ||
           event.revision != widget.controller.revision) return;
       if (_tracker.acceptWindow(event.text)) {
+        _rhythm.observe(_tracker.next, _clock.elapsedMicroseconds / 1000000.0);
         setState(() {});
         widget.onPositionChanged?.call(_tracker.readCharacterEnd);
         WidgetsBinding.instance.addPostFrameCallback((_) => _aimAtReadingPoint());
@@ -79,6 +84,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     }
     if (old.text != widget.text) {
       _generation++; _accept = false; _ticker.stop();
+      _rhythm.clearHistory();
       _layoutWidth = -1;
       _tracker = WeasyWordTracker(widget.text);
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -123,6 +129,16 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     final next = _linePlan.nextStop(_scroll.offset);
     if (next == null) { _ticker.stop(); return; }
     _stepFrom = _scroll.offset; _stepTo = next; _stepProgress = 0;
+    final paragraph = _paragraph;
+    var wordCount = 3;
+    if (paragraph != null) {
+      final from = paragraph.getPositionForOffset(Offset(0, _stepFrom + _firstLineTop + 1)).offset;
+      final to = paragraph.getPositionForOffset(Offset(0, _stepTo + _firstLineTop + 1)).offset;
+      wordCount = _tracker.starts.where((x) => x >= from && x < to).length;
+      if (wordCount == 0) wordCount = 1;
+    }
+    _stepSeconds = _rhythm.durationForLine(wordCount,
+        queuedLines: _linePlan.queuedLines(_scroll.offset)).inMicroseconds / 1000000.0;
     if (!_ticker.isActive) { _previous = Duration.zero; _ticker.start(); }
   }
   void _frame(Duration time) {
@@ -130,8 +146,8 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
         widget.controller.phase.value != WeasyCapturePhase.recording) { _ticker.stop(); return; }
     final dt = _previous == Duration.zero ? 1.0/60 : (time - _previous).inMicroseconds / 1000000.0;
     _previous = time;
-    _stepProgress = (_stepProgress + dt.clamp(0.0, 0.1) / 0.18).clamp(0.0, 1.0).toDouble();
-    final eased = Curves.easeInOutCubic.transform(_stepProgress);
+    _stepProgress = (_stepProgress + dt.clamp(0.0, 0.1) / _stepSeconds).clamp(0.0, 1.0).toDouble();
+    final eased = Curves.easeInOutSine.transform(_stepProgress);
     final y = (_stepFrom + (_stepTo - _stepFrom) * eased)
         .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
     _scroll.jumpTo(y);
@@ -139,6 +155,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   }
   void _touchStart() {
     _generation++; _touching = true; _manual = true; _accept = false;
+    _rhythm.clearHistory();
     _ticker.stop(); _settle?.cancel();
     if (_scroll.hasClients) _linePlan.reset(_scroll.offset);
     unawaited(widget.controller.suspendRecognition().catchError((Object e) {

@@ -13,6 +13,11 @@ class WeasyLineScrollPlan {
   }
   void aim(double value) { if (value > target) target = value; }
   void reset(double position) { target = position; }
+  int queuedLines(double position) {
+    if (target <= position + 0.25) return 0;
+    final count = _stops.where((y) => y > position + 0.25 && y <= target + 0.25).length;
+    return count == 0 ? 1 : count;
+  }
   double? nextStop(double position) {
     if (target <= position + 0.25) return null;
     for (final stop in _stops) {

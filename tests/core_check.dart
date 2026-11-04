@@ -1,6 +1,7 @@
 import '../lib/src/word_tracker.dart';
 import '../lib/src/scroll_motion.dart';
 import '../lib/src/line_scroll_plan.dart';
+import '../lib/src/reading_rhythm.dart';
 
 void check(bool condition) { if (!condition) throw StateError('Core check failed'); }
 void main() {
@@ -64,6 +65,7 @@ void main() {
   lines.layout([0, 32, 32, 64, 96, 128], 110);
   check(lines.nextStop(0) == null); // No speech: no autonomous scrolling.
   lines.aim(96);
+  check(lines.queuedLines(0) == 3 && lines.queuedLines(32) == 2);
   check(lines.nextStop(0) == 32); // Batched speech still moves one line at a time.
   check(lines.nextStop(32) == 64);
   check(lines.nextStop(64) == 96);
@@ -73,5 +75,24 @@ void main() {
   lines.aim(64); check(lines.nextStop(32) == 64);
   lines.reset(10); lines.aim(64); check(lines.nextStop(10) == 32);
   lines.reset(96); lines.aim(110); check(lines.nextStop(96) == 110);
+  final rhythm = WeasyReadingRhythm();
+  check(rhythm.durationForLine(3).inMilliseconds == 825);
+  check(rhythm.durationForLine(1).inMilliseconds == 450);
+  check(rhythm.durationForLine(20).inMilliseconds == 950);
+  check(rhythm.durationForLine(20, queuedLines: 3).inMilliseconds == 650);
+  final faster = WeasyReadingRhythm();
+  for (var i = 0; i <= 24; i++) { faster.observe(i, i / 4); }
+  check(faster.wordsPerSecond > rhythm.wordsPerSecond);
+  check(faster.durationForLine(3) < rhythm.durationForLine(3));
+  final slower = WeasyReadingRhythm();
+  for (var i = 0; i <= 12; i++) { slower.observe(i, i.toDouble()); }
+  check(slower.durationForLine(3) > rhythm.durationForLine(3));
+  final learned = faster.wordsPerSecond;
+  faster.observe(25, 100); // A pause or recognition stall does not slow the learned tempo.
+  check(faster.wordsPerSecond == learned);
+  faster.observe(90, 100.1); // A catch-up burst does not accelerate it either.
+  check(faster.wordsPerSecond == learned);
+  faster.clearHistory(); faster.observe(0, 102); // Manual rewind preserves the user's tempo.
+  check(faster.wordsPerSecond == learned);
   print('Dart core checks passed');
 }
