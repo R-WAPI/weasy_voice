@@ -98,7 +98,9 @@ class WeasyWordTracker {
     }
     if (pi + 1 < limit && words[pi + 1].isNotEmpty) {
       final q = _quality(words[pi] + words[pi + 1], spoken[si]);
-      if (q > (best?.quality ?? 0)) best = _WordMatch(2, 1, q);
+      // A fuzzy join can swallow a short unspoken word and manufacture a
+      // third anchor. Only exact joined spellings count as two script words.
+      if (q == 2 && q > (best?.quality ?? 0)) best = _WordMatch(2, 1, q);
     }
     return best;
   }
