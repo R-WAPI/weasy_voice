@@ -10,6 +10,12 @@ class WeasyFlowMotion {
   void armStartDelay([double seconds = 1.4]) {
     _startRemaining = seconds; _hasObservation = false; velocity = 0;
   }
+  // Native elapsed time includes recognition latency. Never add that latency
+  // to the requested startup delay or restart an already running countdown.
+  void speechStarted(double elapsedSeconds) {
+    if (elapsedSeconds < 0) return;
+    _startRemaining = math.min(_startRemaining, math.max(0, 1.4 - elapsedSeconds));
+  }
   double position = 0, velocity = 0;
   double _anchor = 0, _age = 10, _pace = 0;
   bool _atEnd = false;

@@ -36,6 +36,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   Timer? _settle;
   bool _touching = false, _manual = false, _accept = true;
   int _generation = 0;
+  bool _startupPrimed = false;
   Duration _previous = Duration.zero;
   late WeasyCapturePhase _lastPhase;
 
@@ -56,6 +57,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       _tracker = WeasyWordTracker(widget.text);
       _flow.reset(0);
       _flow.armStartDelay();
+      _startupPrimed = false;
       if (_scroll.hasClients) _scroll.jumpTo(0);
       setState(() {});
     }
@@ -68,8 +70,17 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       if (event.type == 'recognitionError' || event.type == 'captureError') {
         widget.onError?.call(event.message); return;
       }
-      if (!_accept || _manual || event.type != 'transcript' ||
-          event.revision != widget.controller.revision) return;
+      if (!_accept || _manual || event.revision != widget.controller.revision ||
+          widget.controller.phase.value != WeasyCapturePhase.recording) return;
+      if (event.type == 'speechOnset') {
+        _flow.speechStarted(event.speechElapsedMs / 1000.0);
+        if (!_startupPrimed && _tracker.next == 0) {
+          _startupPrimed = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _aimAtReadingPoint(startup: true));
+        }
+        return;
+      }
+      if (event.type != 'transcript') return;
       if (_tracker.acceptWindow(event.text)) {
         _rhythm.observe(_tracker.next, _clock.elapsedMicroseconds / 1000000.0);
         setState(() {});
@@ -92,6 +103,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       _layoutWidth = -1;
       _tracker = WeasyWordTracker(widget.text);
       _flow.armStartDelay();
+      _startupPrimed = false;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         if (_scroll.hasClients) { _scroll.jumpTo(0); _flow.reset(0); }
@@ -107,7 +119,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     final object = _textKey.currentContext?.findRenderObject();
     return object is RenderParagraph ? object : null;
   }
-  void _aimAtReadingPoint() {
+  void _aimAtReadingPoint({bool startup = false}) {
     if (!mounted || _manual || !_accept || !_scroll.hasClients || widget.text.isEmpty ||
         widget.controller.phase.value != WeasyCapturePhase.recording) return;
     final paragraph = _paragraph;
@@ -130,7 +142,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
       _flow.reset(_scroll.offset);
       _layoutWidth = paragraph.size.width; _layoutHeight = paragraph.size.height;
     }
-    if (_wordTops.isEmpty || _tracker.next == 0) return;
+    if (_wordTops.isEmpty || (_tracker.next == 0 && !startup)) return;
     final index = math.min(_tracker.next, _wordTops.length - 1);
     final top = _wordTops[index];
     var first = index, last = index + 1;

@@ -11,6 +11,7 @@ class WeasyWordTracker {
   final List<String> words = [];
   int next = 0;
   String _last = '';
+  int _misses = 0;
 
   static String normalize(String word) {
     const accents = {'á':'a','é':'e','í':'i','ó':'o','ö':'o','ő':'o','ú':'u','ü':'u','ű':'u'};
@@ -22,7 +23,7 @@ class WeasyWordTracker {
   void resetAtCharacter(int character) {
     var i = 0;
     while (i < starts.length && starts[i] < character) { i++; }
-    next = i; _last = '';
+    next = i; _last = ''; _misses = 0;
   }
   bool acceptWindow(String hypothesis) {
     final spoken = hypothesis.split(RegExp(r'\s+')).map(normalize).where((s) => s.isNotEmpty).toList();
@@ -30,7 +31,7 @@ class WeasyWordTracker {
     if (signature == _last) return false;
     _last = signature;
     final start = next > 12 ? next - 12 : 0;
-    final limit = (next + 20).clamp(0, words.length).toInt();
+    final limit = (next + (_misses >= 2 && next > 0 ? 40 : 20)).clamp(0, words.length).toInt();
     var bestEnd = next;
     var bestScore = double.negativeInfinity;
     for (var s = 0; s < spoken.length; s++) {
@@ -56,7 +57,11 @@ class WeasyWordTracker {
           final singleExpected = matched == 1 && p == next && match.quality == 2;
           final anchored = matched >= 2 && strong >= 1 && (exact >= 1 || matched >= 3);
           final nearby = p <= next + 3;
-          final reacquired = matched >= 3 && strong >= 2;
+          final recoveryPair = next > 0 && _misses >= 1 && matched == 2 && exact == 2 &&
+              p > next && p <= next + 16 && pi == p + 2 &&
+              words[p].length >= 5 && words[p + 1].length >= 5 &&
+              _uniquePair(p);
+          final reacquired = (matched >= 3 && strong >= 2) || recoveryPair;
           if (!(singleExpected || anchored) || !(nearby || reacquired)) continue;
           final distance = p > next ? p - next : 0;
           final score = strong * 3.0 + (matched - strong) + exact * 0.25 - gaps * 2 - distance * 0.12;
@@ -67,8 +72,16 @@ class WeasyWordTracker {
       }
     }
     final changed = next != bestEnd;
+    _misses = changed ? 0 : _misses + 1;
     next = bestEnd;
     return changed;
+  }
+
+  bool _uniquePair(int position) {
+    for (var i = 0; i + 1 < words.length; i++) {
+      if (i != position && words[i] == words[position] && words[i + 1] == words[position + 1]) return false;
+    }
+    return true;
   }
 
   _WordMatch? _matchAt(List<String> spoken, int pi, int si, int limit) {

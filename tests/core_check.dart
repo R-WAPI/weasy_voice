@@ -37,6 +37,21 @@ void main() {
   final common = WeasyWordTracker('Kezdet következik sorok között szöveggel egy az ablak végén.');
   check(!common.acceptWindow('egy az') && common.next == 0);
   check(!common.acceptWindow('ablak végén') && common.next == 0);
+  final recover = WeasyWordTracker('Most elkezdjük. Itt néhány hibásan hallott szó következik aztán biztosan folytatjuk tovább.');
+  check(recover.acceptWindow('most elkezdjük') && recover.next == 2);
+  check(!recover.acceptWindow('érthetetlen zaj'));
+  check(recover.acceptWindow('biztosan folytatjuk') && recover.next == 11);
+  recover.resetAtCharacter(0);
+  check(!recover.acceptWindow('biztosan folytatjuk')); // Reset discards recovery history.
+  final repeated = WeasyWordTracker('Most elkezdjük. Egy kettő három négy öt biztosan folytatjuk majd biztosan folytatjuk.');
+  check(repeated.acceptWindow('most elkezdjük'));
+  check(!repeated.acceptWindow('érthetetlen zaj'));
+  check(!repeated.acceptWindow('biztosan folytatjuk')); // Ambiguous repeated pair cannot jump.
+  final late = WeasyWordTracker('Most elkezdjük. ${List.generate(25, (i) => 'elem$i').join(' ')} pontosan követhető folytatás.');
+  check(late.acceptWindow('most elkezdjük'));
+  check(!late.acceptWindow('hibás hang'));
+  check(!late.acceptWindow('más hiba'));
+  check(late.acceptWindow('pontosan követhető folytatás') && late.next == 30);
   typo.resetAtCharacter(0);
   check(typo.next == 0);
   check(typo.acceptWindow('a nagymatskákkal együtt') && typo.next == 3);
@@ -148,5 +163,18 @@ void main() {
   check(start.position > 10); // No repeated delay after a manual rewind/resume.
   start.reset(0); start.armStartDelay(); start.observe(32, 20);
   start.step(0.1, 1000); check(start.position == 0); // A new take re-arms it.
+  final onset = WeasyFlowMotion(predictionSeconds: 1.4, predictionLines: 0.85);
+  onset.armStartDelay();
+  onset.speechStarted(0.12); onset.reset(0); onset.observe(0, 20);
+  for (var i = 0; i < 70; i++) { onset.step(1/60, 1000); }
+  check(onset.position == 0); // 1.286 seconds from physical energy onset.
+  for (var i = 0; i < 15; i++) { onset.step(1/60, 1000); }
+  check(onset.position > 0); // Begins before the first recognized word arrives.
+  for (var i = 0; i < 600; i++) {
+    onset.speechStarted(12); onset.step(1/60, 1000);
+  }
+  check(onset.settled && onset.position <= 32 * 0.85 + 0.001); // Activity alone cannot run away.
+  onset.reset(0); onset.armStartDelay(); onset.speechStarted(2.5); onset.observe(32, 20);
+  onset.step(1/60, 1000); check(onset.position > 0); // No extra 1.4 s after delayed ASR.
   print('Dart core checks passed');
 }

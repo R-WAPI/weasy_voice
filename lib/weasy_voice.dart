@@ -14,9 +14,10 @@ class WeasyVoiceEvent {
         text = value['text'] as String? ?? '',
         message = value['message'] as String? ?? '',
         revision = (value['revision'] as num?)?.toInt() ?? -1,
-        inferenceMs = (value['inferenceMs'] as num?)?.toInt() ?? 0;
+        inferenceMs = (value['inferenceMs'] as num?)?.toInt() ?? 0,
+        speechElapsedMs = (value['speechElapsedMs'] as num?)?.toInt() ?? -1;
   final String type, text, message;
-  final int revision, inferenceMs;
+  final int revision, inferenceMs, speechElapsedMs;
 }
 
 class WeasyAudioFile {

@@ -22,3 +22,7 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos lib tests
       - run: dart run tests/core_check.dart
+      - name: Check PCM onset gate
+        run: |
+          javac -d /tmp/weasy-onset android/src/main/java/hu/weasy/voice/SpeechOnset.java tests/SpeechOnsetCheck.java
+          java -cp /tmp/weasy-onset hu.weasy.voice.SpeechOnsetCheck

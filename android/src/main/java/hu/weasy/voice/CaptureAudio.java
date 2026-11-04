@@ -26,6 +26,8 @@ final class CaptureAudio implements SpeechInput.Listener {
     private volatile String failure;
     private volatile long firstSampleNs, bytesWritten;
     private long revision;
+    private final SpeechOnset onset = new SpeechOnset();
+    private int lastOnsetReport = -1000;
 
     CaptureAudio(Context context, File path, long videoStartNs, Events events) {
         this.context = context; this.path = path; this.videoStartNs = videoStartNs; this.events = events;
@@ -71,7 +73,18 @@ final class CaptureAudio implements SpeechInput.Listener {
                         if (firstSampleNs == 0) firstSampleNs = System.nanoTime() - n * 1_000_000_000L / 32000;
                         output.write(buffer, 0, n); bytesWritten += n;
                         SpeechInput current = speech;
-                        if (current != null) current.offer(buffer, n);
+                        if (current != null) {
+                            int elapsed = onset.offer(buffer, n);
+                            if (elapsed >= 0 && elapsed <= 3000 && elapsed - lastOnsetReport >= 100) {
+                                lastOnsetReport = elapsed;
+                                Map<String,Object> activity = new HashMap<>();
+                                activity.put("type", "speechOnset");
+                                activity.put("revision", revision);
+                                activity.put("speechElapsedMs", elapsed);
+                                events.event(activity);
+                            }
+                            current.offer(buffer, n);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -96,7 +109,7 @@ final class CaptureAudio implements SpeechInput.Listener {
     }
     long resetRecognizer() {
         SpeechInput old;
-        synchronized (lock) { old = speech; speech = null; revision++; }
+        synchronized (lock) { old = speech; speech = null; revision++; onset.reset(); lastOnsetReport = -1000; }
         if (old != null) old.close();
         if (running && !paused) {
             SpeechInput replacement = new SpeechInput(context, this);

@@ -58,3 +58,9 @@ Az automatikus próbák ellenőrzik a folytonosságot fél másodpercenként ér
 A mozgás első biztos szóegyezéstől számított 1,4 másodperc után indul. Ez nem az első hang fizikai időpontja: a felismerés saját késése hozzáadódik. Új egyezés nem indítja újra az időzítést; kézi visszagörgetés és folytatás nem kap új késleltetést. Új felvétel vagy lecserélt szöveg újraindítja az indulási várakozást.
 
 Az olvasási célpont 0,6 sorral feljebb kerül. A mozgásbecslés két egyezés között legfeljebb 1,4 másodpercig és 0,85 sormagasságig tart; a szürkülés továbbra is kizárólag szóegyezést követ. Csendfelismerés nincs hozzáadva, rövid kifutás ezért lehetséges. A 0.1.5 visszaállási pontja: a7a02e207f76aca63016a63c0a0b45b07fbd1d84.
+
+## 0.1.7 – indulás a hang kezdetétől, elakadás utáni visszatalálás
+
+Az indulási 1,4 másodpercet a meglévő PCM-folyamon érzékelt, legalább 120 ms-os hangaktivitás kezdetétől számoljuk. Nem nyílik második mikrofon. Az energiaérzékelés becslés: erős háttérzaj is kiválthatja, halk beszédet később észlelhet. Már az első szófelismerés előtt elkezdődhet a finom mozgás, de ez önmagában legfeljebb 0,85 sort mozdít és egyetlen szót sem szürkít ki. Újabb hangaktivitás-jelzés nem indítja újra a mozgásbecslést; a további haladáshoz szóegyezés szükséges.
+
+Elakadt, korábban már követett szövegnél két pontos, legalább ötbetűs, a dokumentumban egyedileg előforduló egymás utáni szó is visszaállíthatja a követést a közelben. Tartós elakadáskor a keresési tartomány 20-ról 40 szóra bővül, a távolabbi találat továbbra is legalább három egyező szót kíván. Kézi újrapozicionálás törli az elakadás előzményeit. A videó kódolása, mentése és a meglévő sebesség-/gyorsuláskorlát változatlan. A telefonos javulás mértéke új APK-val ellenőrizendő.
