@@ -17,6 +17,12 @@ void main() {
   check(WeasyWordTracker.normalize('ÁRVÍZTŰRŐ!') == 'arvizturo');
   final typo = WeasyWordTracker('A nagymacskákkal együtt dolgozott.');
   check(typo.acceptWindow('a nagymatskákkal együtt') && typo.next == 3);
+  final names = WeasyWordTracker('Alberto szerkesztő Budapesten dolgozik.');
+  check(names.acceptWindow('allbarto szerkezto buddapesten') && names.next == 3);
+  final missingLetter = WeasyWordTracker('Hozott létre egy ablakot.');
+  check(missingLetter.acceptWindow('hozott léte egy') && missingLetter.next == 3);
+  final twoEdits = WeasyWordTracker('Kísérlet folytatódik.');
+  check(twoEdits.acceptWindow('kisele folytatódik') && twoEdits.next == 2);
   final split = WeasyWordTracker('Szövegszerkesztő ablak nyílik.');
   check(split.acceptWindow('szöveg szerkesztő ablak') && split.next == 2);
   final joined = WeasyWordTracker('Kamera kép látszik.');

@@ -95,9 +95,10 @@ class WeasyWordTracker {
     if (expected.isEmpty || actual.isEmpty) return 0;
     final a = expected.replaceAll('x', 'ksz');
     final b = actual.replaceAll('x', 'ksz');
-    if (a.length < 5 || b.length < 5) return 0;
+    if (a.length < 4 || b.length < 4) return 0;
     final longest = a.length > b.length ? a.length : b.length;
-    final maximum = longest >= 9 ? 2 : 1;
+    if (longest < 5) return 0;
+    final maximum = longest >= 8 ? 2 : 1;
     if ((a.length - b.length).abs() > maximum) return 0;
     var previous = List<int>.generate(b.length + 1, (i) => i);
     for (var i = 1; i <= a.length; i++) {
@@ -112,7 +113,7 @@ class WeasyWordTracker {
       previous = row;
     }
     final distance = previous.last;
-    return distance <= maximum && distance / longest <= 0.23 ? 1 : 0;
+    return distance <= maximum && distance / longest <= 0.25 ? 1 : 0;
   }
 }
 
