@@ -94,7 +94,13 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     final offset = math.min(_tracker.readCharacterEnd, widget.text.length - 1);
     final boxes = paragraph.getBoxesForSelection(TextSelection(baseOffset: offset, extentOffset: offset + 1));
     if (boxes.isEmpty) return;
-    final target = (boxes.first.top + 8).clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
+    final box = boxes.first;
+    final lineHeight = math.max(box.bottom - box.top, widget.fontSize * 1.3);
+    final fraction = (box.left / math.max(1.0, paragraph.size.width)).clamp(0.0, 1.0);
+    // Follow progress within a line, leaving the unread line fully visible.
+    final target = (box.top - lineHeight + fraction * lineHeight + 8)
+        .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
+    _motion.maxSpeed = math.max(240.0, lineHeight * 10);
     if (!_ticker.isActive) _motion.reset(_scroll.offset);
     _motion.aim(target);
     if (!_ticker.isActive && !_motion.settled) { _previous = Duration.zero; _ticker.start(); }
@@ -156,12 +162,12 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
           child: SingleChildScrollView(
             controller: _scroll,
             padding: EdgeInsets.fromLTRB(12, 8, 12, widget.height),
-            child: RichText(key: _textKey, textScaler: MediaQuery.textScalerOf(context),
+            child: RepaintBoundary(child: RichText(key: _textKey, textScaler: MediaQuery.textScalerOf(context),
               text: TextSpan(style: style, children: [
                 if (end > 0) TextSpan(text: widget.text.substring(0, end),
                     style: const TextStyle(color: Color(0xFF91918B))),
                 TextSpan(text: widget.text.substring(end)),
-              ])),
+              ]))),
           ),
         ),
       ),

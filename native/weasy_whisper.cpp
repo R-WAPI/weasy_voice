@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <algorithm>
 #include "whisper.h"
 
 struct Model {
@@ -70,9 +71,10 @@ Java_hu_weasy_hangproba_LocalModel_nativeDecode(JNIEnv * env, jclass, jlong hand
     params.temperature = 0.0f;
     params.temperature_inc = 0.0f;
     params.greedy.best_of = 1;
-    params.max_tokens = 64;
-    // 256 encoder positions cover 5.12 seconds, above the rolling four-second input.
-    params.audio_ctx = 256;
+    params.max_tokens = 48;
+    // One encoder position covers 20 ms. Round up to 32 positions, keeping
+    // the three-second window inside a 3.2-second context instead of 5.12 s.
+    params.audio_ctx = std::max(96, std::min(160, 32 * ((count + 10239) / 10240)));
     params.no_speech_thold = 0.6f;
     params.abort_callback = [](void * data) { return static_cast<Model *>(data)->cancelled.load(); };
     params.abort_callback_user_data = model;

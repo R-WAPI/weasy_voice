@@ -9,7 +9,7 @@ public final class SpeechInput {
         void ended(SpeechInput source, String reason, boolean failed);
     }
     private final Listener listener;
-    private final AudioWindow window = new AudioWindow(16000 * 4);
+    private final AudioWindow window = new AudioWindow(16000 * 3);
     private volatile boolean open = true;
     private boolean inputDone, queued, ended;
     private long lastProcessed, lastStartMs;

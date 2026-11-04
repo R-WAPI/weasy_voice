@@ -22,7 +22,7 @@ Magyar beszédfelismerés a helyi Whisper base-q5_1 modellel. Nem használ küls
 
 ## Gyorsítás
 
-A hangablak 6 helyett 4 másodperc, a felismerési lépés 800 helyett 250 ms új hang után indítható. Egyszerre egy felismerés fut; a tényleges frissítési idő továbbra is függ a telefon feldolgozási idejétől. A modell rövidebb kontextussal dolgozik; a pontosságot ismét ellenőrizni kell. A felületi mozgás külön képkockás simítást kapott, így nem a felismerések gyakoriságával ugrik.
+A 0.1.1-es változatban a hangablak 4 helyett 3 másodperc, a felismerési lépés 250 ms új hang után indítható. Az encoder kontextusa a hanghosszhoz igazodva 1,92–3,2 másodperc, a korábbi fix 5,12 másodperc helyett. Egyszerre egy felismerés fut; a tényleges frissítési idő továbbra is függ a telefon feldolgozási idejétől. A rövidebb kontextus pontosságát telefonon ismét ellenőrizni kell. A görgetési célpont a soron belüli szópozícióhoz igazodik, egy olvasható sornyi helyet hagyva felül. Gyorsabban reagáló, túllövés nélküli mozgás és a betűmérethez igazodó sebességkorlát váltja a korábbi, lassan lecsengő animációt. A felismerés késését ez önmagában nem szünteti meg.
 
 ## Egyetlen következő telefonos próba
 

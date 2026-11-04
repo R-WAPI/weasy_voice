@@ -24,5 +24,22 @@ void main() {
   }
   check(m.settled);
   m.reset(30); check(m.position == 30 && m.settled);
+  final thirty = WeasyScrollMotion(500), sixty = WeasyScrollMotion(500);
+  thirty.aim(80); sixty.aim(80);
+  for (var i = 0; i < 15; i++) { thirty.step(1/30); }
+  for (var i = 0; i < 30; i++) { sixty.step(1/60); }
+  check((thirty.position - sixty.position).abs() < 0.01);
+  check(sixty.position > 78); // No extra one-second easing lag.
+  sixty.aim(200);
+  previous = sixty.position;
+  for (var i = 0; i < 120; i++) {
+    final current = sixty.step(1/60);
+    check(current >= previous && current <= 200);
+    previous = current;
+  }
+  check(sixty.settled);
+  final before = sixty.position;
+  check(sixty.step(0) == before);
+  sixty.reset(12); sixty.aim(4); check(sixty.step(1/60) == 12);
   print('Dart core checks passed');
 }
