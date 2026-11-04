@@ -1,0 +1,2 @@
+-keep class hu.weasy.hangproba.LocalModel { *; }
+-keepclasseswithmembernames class * { native <methods>; }

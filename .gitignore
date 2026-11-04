@@ -1,0 +1,7 @@
+build/
+build-check/
+.dart_tool/
+.gradle/
+*.p12
+*.jks
+local.properties

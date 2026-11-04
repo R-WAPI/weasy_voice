@@ -1,0 +1,23 @@
+name: weasy_voice
+description: Local Hungarian speech following with shared PCM recording for Weasy on Android ARM64.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.11.1+2
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: hu.weasy.voice
+        pluginClass: WeasyVoicePlugin
+  assets:
+    - assets/ggml-base-q5_1.bin
+    - assets/LICENSE-whisper-cpp.txt
+    - assets/LICENSE-whisper-model.txt
+    - assets/LICENSE-ggml.txt
+    - assets/NOTICE-android-runtime.txt

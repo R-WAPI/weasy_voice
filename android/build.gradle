@@ -1,0 +1,19 @@
+group 'hu.weasy.voice'
+version '0.1.0'
+
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.11.1' }
+}
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'hu.weasy.voice'
+    compileSdk 35
+    defaultConfig { minSdk 33; consumerProguardFiles 'consumer-rules.pro' }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    sourceSets { main.jniLibs.srcDirs = ['src/main/jniLibs'] }
+}
