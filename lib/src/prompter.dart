@@ -26,6 +26,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   final _flow = WeasyFlowMotion();
   final List<double> _wordTops = [];
   double _lineHeight = 32;
+  double _topInset = 40;
   final _rhythm = WeasyReadingRhythm();
   final _clock = Stopwatch()..start();
   double _layoutWidth = -1, _layoutHeight = -1, _firstLineTop = 0;
@@ -167,7 +168,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     if (!mounted || _touching || !_scroll.hasClients) return;
     final paragraph = _paragraph;
     if (paragraph == null) return;
-    final y = math.max(0.0, _scroll.offset - 8);
+    final y = math.max(0.0, _scroll.offset - _topInset);
     final position = paragraph.getPositionForOffset(Offset(0, y));
     // Map the viewport top to the first word on that visual line.
     _tracker.resetAtCharacter(position.offset);
@@ -185,6 +186,8 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
   }
   @override Widget build(BuildContext context) {
     final end = _tracker.readCharacterEnd;
+    // One line of headroom lets text rise without clipping the line still read.
+    _topInset = 8 + MediaQuery.textScalerOf(context).scale(widget.fontSize) * 1.3;
     final style = TextStyle(fontFamily: widget.fontFamily, fontSize: widget.fontSize,
         fontWeight: FontWeight.w700, height: 1.3, color: Colors.white);
     return Container(
@@ -199,7 +202,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
           onNotification: (_) { _scheduleSettle(); return false; },
           child: SingleChildScrollView(
             controller: _scroll,
-            padding: EdgeInsets.fromLTRB(12, 8, 12, widget.height),
+            padding: EdgeInsets.fromLTRB(12, _topInset, 12, widget.height),
             child: RepaintBoundary(child: RichText(key: _textKey, textScaler: MediaQuery.textScalerOf(context),
               text: TextSpan(style: style, children: [
                 if (end > 0) TextSpan(text: widget.text.substring(0, end),
