@@ -1,5 +1,6 @@
 import '../lib/src/word_tracker.dart';
 import '../lib/src/scroll_motion.dart';
+import '../lib/src/line_scroll_plan.dart';
 
 void check(bool condition) { if (!condition) throw StateError('Core check failed'); }
 void main() {
@@ -41,5 +42,18 @@ void main() {
   final before = sixty.position;
   check(sixty.step(0) == before);
   sixty.reset(12); sixty.aim(4); check(sixty.step(1/60) == 12);
+  final lines = WeasyLineScrollPlan();
+  lines.layout([0, 32, 32, 64, 96, 128], 110);
+  check(lines.nextStop(0) == null); // No speech: no autonomous scrolling.
+  lines.aim(96);
+  check(lines.nextStop(0) == 32); // Batched speech still moves one line at a time.
+  check(lines.nextStop(32) == 64);
+  check(lines.nextStop(64) == 96);
+  check(lines.nextStop(96) == null);
+  lines.reset(32); // A manual rewind discards every old queued target.
+  check(lines.nextStop(32) == null);
+  lines.aim(64); check(lines.nextStop(32) == 64);
+  lines.reset(10); lines.aim(64); check(lines.nextStop(10) == 32);
+  lines.reset(96); lines.aim(110); check(lines.nextStop(96) == 110);
   print('Dart core checks passed');
 }

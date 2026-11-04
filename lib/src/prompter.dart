@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import '../weasy_voice.dart';
-import 'scroll_motion.dart';
+import 'line_scroll_plan.dart';
 
 /// Place over CameraPreview. It is never drawn into the camera's video track.
 class WeasyPrompter extends StatefulWidget {
@@ -22,7 +22,9 @@ class WeasyPrompter extends StatefulWidget {
 class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
   final _textKey = GlobalKey();
-  final _motion = WeasyScrollMotion(160);
+  final _linePlan = WeasyLineScrollPlan();
+  double _layoutWidth = -1, _layoutHeight = -1, _firstLineTop = 0;
+  double _stepFrom = 0, _stepTo = 0, _stepProgress = 0;
   late WeasyWordTracker _tracker;
   late Ticker _ticker;
   StreamSubscription<WeasyVoiceEvent>? _subscription;
@@ -43,11 +45,14 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     if (current != WeasyCapturePhase.recording) _ticker.stop();
     if (_lastPhase == WeasyCapturePhase.complete && current == WeasyCapturePhase.idle) {
       _tracker = WeasyWordTracker(widget.text);
-      _motion.reset(0);
+      _linePlan.reset(0);
       if (_scroll.hasClients) _scroll.jumpTo(0);
       setState(() {});
     }
     _lastPhase = current;
+    if (current == WeasyCapturePhase.recording) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _aimAtReadingPoint());
+    }
   }
   void _listen() {
     _subscription = widget.controller.events.listen((event) {
@@ -74,12 +79,17 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     }
     if (old.text != widget.text) {
       _generation++; _accept = false; _ticker.stop();
+      _layoutWidth = -1;
       _tracker = WeasyWordTracker(widget.text);
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        if (_scroll.hasClients) { _scroll.jumpTo(0); _motion.reset(0); }
+        if (_scroll.hasClients) { _scroll.jumpTo(0); _linePlan.reset(0); }
         await _resetRecognition();
       });
+    }
+    if (old.fontSize != widget.fontSize || old.fontFamily != widget.fontFamily) {
+      _layoutWidth = -1;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _aimAtReadingPoint());
     }
   }
   RenderParagraph? get _paragraph {
@@ -91,32 +101,46 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
         widget.controller.phase.value != WeasyCapturePhase.recording) return;
     final paragraph = _paragraph;
     if (paragraph == null) return;
+    if (_layoutWidth != paragraph.size.width || _layoutHeight != paragraph.size.height) {
+      _ticker.stop();
+      final lines = paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: widget.text.length));
+      if (lines.isEmpty) return;
+      _firstLineTop = lines.first.top;
+      _linePlan.layout(lines.map((box) => box.top - _firstLineTop), _scroll.position.maxScrollExtent);
+      _layoutWidth = paragraph.size.width; _layoutHeight = paragraph.size.height;
+    }
     final offset = math.min(_tracker.readCharacterEnd, widget.text.length - 1);
     final boxes = paragraph.getBoxesForSelection(TextSelection(baseOffset: offset, extentOffset: offset + 1));
     if (boxes.isEmpty) return;
-    final box = boxes.first;
-    final lineHeight = math.max(box.bottom - box.top, widget.fontSize * 1.3);
-    final fraction = (box.left / math.max(1.0, paragraph.size.width)).clamp(0.0, 1.0);
-    // Follow progress within a line, leaving the unread line fully visible.
-    final target = (box.top - lineHeight + fraction * lineHeight + 8)
+    // Only entering the next visual line changes the target. Finishing words
+    // inside the current line changes their color, never the scroll position.
+    final target = (boxes.first.top - _firstLineTop)
         .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
-    _motion.maxSpeed = math.max(240.0, lineHeight * 10);
-    if (!_ticker.isActive) _motion.reset(_scroll.offset);
-    _motion.aim(target);
-    if (!_ticker.isActive && !_motion.settled) { _previous = Duration.zero; _ticker.start(); }
+    _linePlan.aim(target);
+    if (!_ticker.isActive) _beginNextLine();
+  }
+  void _beginNextLine() {
+    final next = _linePlan.nextStop(_scroll.offset);
+    if (next == null) { _ticker.stop(); return; }
+    _stepFrom = _scroll.offset; _stepTo = next; _stepProgress = 0;
+    if (!_ticker.isActive) { _previous = Duration.zero; _ticker.start(); }
   }
   void _frame(Duration time) {
     if (!mounted || _manual || !_scroll.hasClients ||
         widget.controller.phase.value != WeasyCapturePhase.recording) { _ticker.stop(); return; }
     final dt = _previous == Duration.zero ? 1.0/60 : (time - _previous).inMicroseconds / 1000000.0;
     _previous = time;
-    final y = _motion.step(dt).clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
+    _stepProgress = (_stepProgress + dt.clamp(0.0, 0.1) / 0.18).clamp(0.0, 1.0).toDouble();
+    final eased = Curves.easeInOutCubic.transform(_stepProgress);
+    final y = (_stepFrom + (_stepTo - _stepFrom) * eased)
+        .clamp(0.0, _scroll.position.maxScrollExtent).toDouble();
     _scroll.jumpTo(y);
-    if (_motion.settled) _ticker.stop();
+    if (_stepProgress == 1) _beginNextLine();
   }
   void _touchStart() {
     _generation++; _touching = true; _manual = true; _accept = false;
     _ticker.stop(); _settle?.cancel();
+    if (_scroll.hasClients) _linePlan.reset(_scroll.offset);
     unawaited(widget.controller.suspendRecognition().catchError((Object e) {
       if (mounted) widget.onError?.call(e.toString()); return -1;
     }));
@@ -133,7 +157,7 @@ class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProvider
     final position = paragraph.getPositionForOffset(Offset(0, y));
     // Map the viewport top to the first word on that visual line.
     _tracker.resetAtCharacter(position.offset);
-    _motion.reset(_scroll.offset);
+    _linePlan.reset(_scroll.offset);
     _manual = false; setState(() {});
     widget.onPositionChanged?.call(_tracker.readCharacterEnd);
     await _resetRecognition();
