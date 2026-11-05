@@ -61,6 +61,8 @@ Az olvasási célpont 0,6 sorral feljebb kerül. A mozgásbecslés két egyezés
 
 ## 0.1.8 – 10% erősítés a felismerő bemenetén
 
+A 0.1.9-es verzió ezt további 15 százalékponttal, az eredeti amplitúdó 1,25-szörösére emeli (+25%). A tartománykorlátozás megmarad; a videó hangja és a görgetés beállításai változatlanok.
+
 A beszédfelismerő mintái 1,10-szeres amplitúdót kapnak, a megengedett tartományra korlátozva. A felismerő saját hangaktivitás-vizsgálata is ezeket a mintákat használja. Az eredeti PCM, a mentett videó hangja, az indulási hangérzékelő és a görgetési beállítások változatlanok. Ez fix, mérsékelt erősítés, nem automatikus hangerőszabályozás vagy zajszűrés. Telefonon kell ellenőrizni, segít-e a halk felolvasásnál.
 
 ## 0.1.7 – indulás a hang kezdetétől, elakadás utáni visszatalálás

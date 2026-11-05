@@ -15,8 +15,8 @@ public final class AudioGainCheck {
         byte[] original = input.clone();
         window.offer(input, input.length);
         float[] out = window.snapshot().samples;
-        check(Math.abs(out[0] - 1100f/32768f) < 0.000001f);
-        check(Math.abs(out[1] + 1100f/32768f) < 0.000001f);
+        check(Math.abs(out[0] - 1250f/32768f) < 0.000001f);
+        check(Math.abs(out[1] + 1250f/32768f) < 0.000001f);
         check(out[2] == 1f && out[3] == -1f && out[4] == 0f);
         check(Arrays.equals(input, original)); // Video PCM is never modified.
         AudioWindow quiet = new AudioWindow(16);
