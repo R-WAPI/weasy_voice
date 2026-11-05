@@ -12,7 +12,8 @@ public final class AudioWindow {
         double energy = 0;
         for (int i = 0; i < length; i += 2) {
             short pcm = (short)((bytes[i] & 255) | (bytes[i + 1] << 8));
-            float value = pcm / 32768f;
+            // Recognition-only +10% amplitude; original PCM/video audio is untouched.
+            float value = Math.max(-1f, Math.min(1f, (pcm / 32768f) * 1.10f));
             ring[cursor] = value;
             cursor = (cursor + 1) % ring.length;
             count = Math.min(count + 1, ring.length); total++;

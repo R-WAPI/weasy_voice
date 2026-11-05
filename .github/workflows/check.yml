@@ -26,3 +26,7 @@ jobs:
         run: |
           javac -d /tmp/weasy-onset android/src/main/java/hu/weasy/voice/SpeechOnset.java tests/SpeechOnsetCheck.java
           java -cp /tmp/weasy-onset hu.weasy.voice.SpeechOnsetCheck
+      - name: Check recognition-only gain
+        run: |
+          javac -d /tmp/weasy-gain android/src/main/java/hu/weasy/hangproba/AudioWindow.java tests/AudioGainCheck.java
+          java -cp /tmp/weasy-gain hu.weasy.hangproba.AudioGainCheck

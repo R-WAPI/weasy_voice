@@ -59,6 +59,10 @@ A mozgás első biztos szóegyezéstől számított 1,4 másodperc után indul. 
 
 Az olvasási célpont 0,6 sorral feljebb kerül. A mozgásbecslés két egyezés között legfeljebb 1,4 másodpercig és 0,85 sormagasságig tart; a szürkülés továbbra is kizárólag szóegyezést követ. Csendfelismerés nincs hozzáadva, rövid kifutás ezért lehetséges. A 0.1.5 visszaállási pontja: a7a02e207f76aca63016a63c0a0b45b07fbd1d84.
 
+## 0.1.8 – 10% erősítés a felismerő bemenetén
+
+A beszédfelismerő mintái 1,10-szeres amplitúdót kapnak, a megengedett tartományra korlátozva. A felismerő saját hangaktivitás-vizsgálata is ezeket a mintákat használja. Az eredeti PCM, a mentett videó hangja, az indulási hangérzékelő és a görgetési beállítások változatlanok. Ez fix, mérsékelt erősítés, nem automatikus hangerőszabályozás vagy zajszűrés. Telefonon kell ellenőrizni, segít-e a halk felolvasásnál.
+
 ## 0.1.7 – indulás a hang kezdetétől, elakadás utáni visszatalálás
 
 Az indulási 1,4 másodpercet a meglévő PCM-folyamon érzékelt, legalább 120 ms-os hangaktivitás kezdetétől számoljuk. Nem nyílik második mikrofon. Az energiaérzékelés becslés: erős háttérzaj is kiválthatja, halk beszédet később észlelhet. Már az első szófelismerés előtt elkezdődhet a finom mozgás, de ez önmagában legfeljebb 0,85 sort mozdít és egyetlen szót sem szürkít ki. Újabb hangaktivitás-jelzés nem indítja újra a mozgásbecslést; a további haladáshoz szóegyezés szükséges.
