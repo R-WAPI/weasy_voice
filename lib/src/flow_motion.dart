@@ -3,8 +3,12 @@ import 'dart:math' as math;
 /// Continuous, acceleration-limited following of speech anchors.
 /// Prediction affects display only, never the confirmed/read word cursor.
 class WeasyFlowMotion {
-  WeasyFlowMotion({this.predictionSeconds = 0.65, this.predictionLines = 0.4});
+  WeasyFlowMotion({this.predictionSeconds = 0.65, this.predictionLines = 0.4,
+    this.maxLinesPerSecond = 3, this.accelerationLines = 8, this.coastFadeSeconds = 0});
+  WeasyFlowMotion.prompter() : this(predictionSeconds: 1.9, predictionLines: 0.95,
+    maxLinesPerSecond: 2, accelerationLines: 5, coastFadeSeconds: 0.35);
   final double predictionSeconds, predictionLines;
+  final double maxLinesPerSecond, accelerationLines, coastFadeSeconds;
   double _startRemaining = 0;
   bool _hasObservation = false;
   void armStartDelay([double seconds = 1.4]) {
@@ -36,7 +40,20 @@ class WeasyFlowMotion {
     _atEnd = false;
   }
 
-  double get _target => _anchor + math.min(_pace * math.min(_age, predictionSeconds), lineHeight * predictionLines);
+  double get _fade => coastFadeSeconds.clamp(0.0, predictionSeconds).toDouble();
+  double get _cruiseFactor {
+    if (_age >= predictionSeconds) return 0;
+    if (_fade == 0) return 1;
+    return ((predictionSeconds - _age) / _fade).clamp(0.0, 1.0).toDouble();
+  }
+  double get _predictionTime {
+    final age = math.min(_age, predictionSeconds);
+    final steady = predictionSeconds - _fade;
+    if (_fade == 0 || age <= steady) return age;
+    final tail = age - steady;
+    return steady + tail - tail * tail / (2 * _fade);
+  }
+  double get _target => _anchor + math.min(_pace * _predictionTime, lineHeight * predictionLines);
 
   double step(double seconds, double maximum) {
     if (seconds <= 0) return position;
@@ -56,9 +73,9 @@ class WeasyFlowMotion {
         position = target; velocity = 0;
         continue;
       }
-      final acceleration = lineHeight * 8;
-      final cruise = _age < predictionSeconds ? _pace : 0.0;
-      final desired = math.min(lineHeight * 3,
+      final acceleration = lineHeight * accelerationLines;
+      final cruise = _pace * _cruiseFactor;
+      final desired = math.min(lineHeight * maxLinesPerSecond,
           math.min(cruise + distance * 3, math.sqrt(2 * acceleration * distance)));
       final oldVelocity = velocity;
       velocity += (desired - velocity).clamp(-acceleration * dt, acceleration * dt);

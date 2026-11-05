@@ -176,5 +176,33 @@ void main() {
   check(onset.settled && onset.position <= 32 * 0.85 + 0.001); // Activity alone cannot run away.
   onset.reset(0); onset.armStartDelay(); onset.speechStarted(2.5); onset.observe(32, 20);
   onset.step(1/60, 1000); check(onset.position > 0); // No extra 1.4 s after delayed ASR.
+  // Compare the real prompter profile with 0.1.10 for delayed recognition.
+  final previousProfile = WeasyFlowMotion(predictionSeconds: 1.4, predictionLines: 0.85);
+  final gentle = WeasyFlowMotion.prompter();
+  previousProfile.observe(0, 12); gentle.observe(0, 12);
+  for (var i = 0; i < 102; i++) {
+    previousProfile.step(1/60, 1000); gentle.step(1/60, 1000);
+  }
+  check(gentle.velocity > previousProfile.velocity); // Still flowing through a 1.7 s gap.
+  final gentleStart = gentle.position;
+  gentle.observe(gentleStart + 160, 12); // A delayed batch must not cause a fast jump.
+  for (var i = 0; i < 720; i++) {
+    final oldPosition = gentle.position, oldVelocity = gentle.velocity;
+    gentle.step(1/60, 1000);
+    check(gentle.position >= oldPosition && gentle.position - oldPosition <= 64/60 + 0.001);
+    // Away from final target clamping, acceleration is bounded to five lines/s².
+    if (gentle.velocity > 0) check((gentle.velocity - oldVelocity).abs() <= 160/60 + 0.001);
+  }
+  check(gentle.settled && gentle.position <= gentleStart + 160 + 32 * 0.95 + 0.001);
+  gentle.reset(7); gentle.step(1/60, 1000);
+  check(gentle.position == 7 && gentle.settled); // Rewind/pause clears the longer coast.
+  gentle.observe(7, 64);
+  for (var i = 0; i < 720; i++) { gentle.step(1/60, 1000); }
+  check(gentle.settled && gentle.position <= 7 + 32 * 0.95 + 0.001);
+  final gentle30 = WeasyFlowMotion.prompter(), gentle60 = WeasyFlowMotion.prompter();
+  gentle30.observe(60, 12); gentle60.observe(60, 12);
+  for (var i = 0; i < 60; i++) { gentle30.step(1/30, 1000); }
+  for (var i = 0; i < 120; i++) { gentle60.step(1/60, 1000); }
+  check((gentle30.position - gentle60.position).abs() < 0.1);
   print('Dart core checks passed');
 }

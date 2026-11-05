@@ -23,7 +23,7 @@ class WeasyPrompter extends StatefulWidget {
 class _WeasyPrompterState extends State<WeasyPrompter> with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
   final _textKey = GlobalKey();
-  final _flow = WeasyFlowMotion(predictionSeconds: 1.4, predictionLines: 0.85);
+  final _flow = WeasyFlowMotion.prompter();
   final List<double> _wordTops = [];
   double _lineHeight = 32;
   double _topInset = 40;

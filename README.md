@@ -61,6 +61,14 @@ Az olvasási célpont 0,6 sorral feljebb kerül. A mozgásbecslés két egyezés
 
 ## 0.1.8 – 10% erősítés a felismerő bemenetén
 
+## 0.1.11 – lágyabb súgómozgás rövid felismerési kimaradásnál
+
+A súgó megjelenítési becslése legfeljebb 1,9 másodpercig tart a korábbi 1,4 helyett, és legfeljebb 0,95 sort előlegez meg a korábbi 0,85 helyett. Az utolsó 350 ms-ban fokozatosan kifut a becsült sebesség. A felzárkózás sebességkorlátja 3-ról 2 sor/másodpercre, gyorsulása 8-ról 5 sor/másodperc²-re csökken. Ez rövid késéseket simíthat ki; tartós felismerési elakadásnál továbbra is megáll. Csendben rövid kifutás lehetséges, ez nem új beszéd/csend-detektor. Szürkülést csak a szóegyeztetés okoz.
+
+A +40%-os hang-erősítés, az 1,4 másodperces indulási várakozás, a szófelismerés és a rögzítés változatlan. A lassabb felzárkózás olvashatóbb lehet, de nagy lemaradást tovább tart behoznia; telefonon ellenőrizendő. Visszaállási pont: c3d97f99b012ae69096614149c413be8672c3377 (0.1.10).
+
+### Korábbi hangerő-beállítások
+
 A 0.1.10-es verzió az eredeti amplitúdó 1,40-szeresét használja (+40%), további 15 százalékpontos emeléssel. Csak a felismerő bemenete változik, a tartománykorlátozás megmarad. A +25%-os visszaállási pont: 8891c0467255b9d45c1b9a7996e0806ff4175090 (0.1.9).
 
 A 0.1.9-es verzió ezt további 15 százalékponttal, az eredeti amplitúdó 1,25-szörösére emeli (+25%). A tartománykorlátozás megmarad; a videó hangja és a görgetés beállításai változatlanok.
