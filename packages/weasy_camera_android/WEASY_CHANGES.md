@@ -8,6 +8,9 @@ Only runtime source is included. The Dart package, Android namespace and Pigeon
 channel prefix are renamed to avoid collisions with camera's default implementation.
 The app does not need a dependency_override. Weasy selects this implementation when
 its capture controller is created; the public CameraController/CameraPreview API remains.
+It is registered as an independent native plugin (no `implements: camera` metadata),
+so Flutter does not exclude it when resolving camera's default implementation. Dart
+selection is explicit in the Weasy controller, not global automatic registration.
 
 RecorderProxyApi builds CameraX Recorder through WeasyRecorderFactory. A forwarding
 Encoder copies PCM before submitting the original buffer. It delegates the original

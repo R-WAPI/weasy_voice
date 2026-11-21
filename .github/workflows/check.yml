@@ -55,5 +55,6 @@ jobs:
           ''')
           PY
           flutter build apk --debug --target-platform android-arm64
+          grep -R 'hu.weasy.camerax.CameraAndroidCameraxPlugin' android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
           cd android
           ./gradlew :weasy_camera_android:testDebugUnitTest --tests hu.weasy.camerax.TappedAudioEncoderTest

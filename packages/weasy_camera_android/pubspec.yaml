@@ -10,12 +10,10 @@ environment:
 
 flutter:
   plugin:
-    implements: camera
     platforms:
       android:
         package: hu.weasy.camerax
         pluginClass: CameraAndroidCameraxPlugin
-        dartPluginClass: AndroidCameraCameraX
 
 dependencies:
   async: ^2.5.0
