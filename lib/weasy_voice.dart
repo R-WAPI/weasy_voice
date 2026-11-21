@@ -31,7 +31,7 @@ class WeasyAudioFile {
   final String? warning;
 }
 
-/// Low-level native bridge. Camera must not open its own audio recorder.
+/// Native bridge. The current controller uses CameraX's shared audio tap.
 class WeasyVoice {
   WeasyVoice._();
   static final WeasyVoice instance = WeasyVoice._();
@@ -56,6 +56,19 @@ class WeasyVoice {
     _check();
     return await _methods.invokeMethod<bool>('microphonePermission') ?? false;
   }
+  Future<int> startSharedRecognition() async =>
+      (await _methods.invokeMethod<num>('startSharedRecognition'))!.toInt();
+  Future<int> pauseSharedRecognition() async =>
+      (await _methods.invokeMethod<num>('pauseSharedRecognition'))!.toInt();
+  Future<int> resumeSharedRecognition() async =>
+      (await _methods.invokeMethod<num>('resumeSharedRecognition'))!.toInt();
+  Future<int> resetSharedRecognition() async =>
+      (await _methods.invokeMethod<num>('resetSharedRecognition'))!.toInt();
+  Future<int> suspendSharedRecognition() async =>
+      (await _methods.invokeMethod<num>('suspendSharedRecognition'))!.toInt();
+  Future<void> stopSharedRecognition() => _methods.invokeMethod<void>('stopSharedRecognition');
+  Future<void> verifyRecordedVideo(String path) =>
+      _methods.invokeMethod<void>('verifyRecordedVideo', {'path': path});
   Future<int> startAudio() async {
     _check(); return (await _methods.invokeMethod<num>('startAudio'))!.toInt();
   }

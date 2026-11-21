@@ -8,7 +8,7 @@ permissions:
 jobs:
   dart:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Install pinned Flutter SDK
@@ -30,3 +30,30 @@ jobs:
         run: |
           javac -d /tmp/weasy-gain android/src/main/java/hu/weasy/hangproba/AudioWindow.java tests/AudioGainCheck.java
           java -cp /tmp/weasy-gain hu.weasy.hangproba.AudioGainCheck
+      - name: Check shared PCM conversion
+        run: |
+          javac -d /tmp/weasy-pcm android/src/main/java/hu/weasy/voice/Pcm16Mono.java tests/Pcm16MonoCheck.java
+          java -cp /tmp/weasy-pcm hu.weasy.voice.Pcm16MonoCheck
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build Android integration APK
+        run: |
+          flutter create --platforms=android --no-pub --project-name weasy_sync_check "$RUNNER_TEMP/weasy_sync_check"
+          cd "$RUNNER_TEMP/weasy_sync_check"
+          flutter pub add "weasy_voice:{path: $GITHUB_WORKSPACE}"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/build.gradle.kts')
+          p.write_text(p.read_text().replace('minSdk = flutter.minSdkVersion', 'minSdk = 33'))
+          Path('lib/main.dart').write_text('''import 'package:flutter/material.dart';
+          import 'package:weasy_voice/weasy_voice.dart';
+          void main() { runApp(const MaterialApp(home: Scaffold(body: Text('Weasy sync build check')))); }
+          // Keep the plugin API in the integration compilation.
+          Future<void> checkApi(WeasyCaptureController session) async { await session.start(); await session.pause(); await session.resume(); await session.finish(); }
+          ''')
+          PY
+          flutter build apk --debug --target-platform android-arm64
+          cd android
+          ./gradlew :weasy_camera_android:testDebugUnitTest --tests hu.weasy.camerax.TappedAudioEncoderTest

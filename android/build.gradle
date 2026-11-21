@@ -7,6 +7,10 @@ buildscript {
 }
 apply plugin: 'com.android.library'
 
+dependencies {
+    implementation project(':weasy_camera_android')
+}
+
 android {
     namespace 'hu.weasy.voice'
     compileSdk 35

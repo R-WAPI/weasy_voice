@@ -3,12 +3,13 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:weasy_camera_android/weasy_camera_android.dart';
 import '../weasy_voice.dart';
 
 enum WeasyCapturePhase { idle, starting, recording, paused, finalizing, complete, failed, closed }
 
 /// Keep this object in the camera session store when navigating to the editor.
-/// The camera is intentionally silent: the native plugin owns the single audio stream.
+/// CameraX owns both recorded tracks; STT receives a copy of its PCM input.
 class WeasyCaptureController with WidgetsBindingObserver {
   WeasyCaptureController._(this.camera) {
     WidgetsBinding.instance.addObserver(this);
@@ -23,8 +24,7 @@ class WeasyCaptureController with WidgetsBindingObserver {
   late final StreamSubscription<WeasyVoiceEvent> _subscription;
   Future<void> _tail = Future<void>.value();
   int _revision = -1;
-  String? _silentPath, _outputPath;
-  WeasyAudioFile? _audio;
+  String? _recordedPath, _outputPath;
   bool _audioStarted = false, _closed = false;
   String? lastError;
   Stream<WeasyVoiceEvent> get events => _events.stream;
@@ -37,7 +37,9 @@ class WeasyCaptureController with WidgetsBindingObserver {
     final voice = WeasyVoice.instance;
     if (!await voice.requestMicrophonePermission()) throw StateError('A videóhanghoz mikrofonengedély szükséges.');
     await voice.initialize();
-    final camera = CameraController(description, resolution, enableAudio: false);
+    // Select our isolated CameraX adapter before creating a camera. Existing UI still uses CameraPreview.
+    AndroidCameraCameraX.registerWith();
+    final camera = CameraController(description, resolution, enableAudio: true);
     try { await camera.initialize(); }
     catch (_) { await camera.dispose(); rethrow; }
     return WeasyCaptureController._(camera);
@@ -67,14 +69,13 @@ class WeasyCaptureController with WidgetsBindingObserver {
     if (phase.value != WeasyCapturePhase.idle) throw StateError('Előbb zárd le az előző felvételt.');
     lastError = null; phase.value = WeasyCapturePhase.starting;
     try {
-      await camera.startVideoRecording();
+      _revision = await _voice.startSharedRecognition();
+      _audioStarted = true;
       try {
-        _revision = await _voice.startAudio();
-        _audioStarted = true;
+        await camera.startVideoRecording();
       } catch (_) {
-        final failed = await camera.stopVideoRecording();
-        final file = File(failed.path);
-        if (await file.exists()) await file.delete();
+        await _voice.stopSharedRecognition();
+        _audioStarted = false;
         rethrow;
       }
       phase.value = WeasyCapturePhase.recording;
@@ -84,43 +85,42 @@ class WeasyCaptureController with WidgetsBindingObserver {
     if (phase.value == WeasyCapturePhase.paused) return;
     if (phase.value != WeasyCapturePhase.recording) return;
     await camera.pauseVideoRecording();
-    try { _revision = await _voice.pauseAudio(); }
+    try { _revision = await _voice.pauseSharedRecognition(); }
     catch (_) { await camera.resumeVideoRecording(); rethrow; }
     phase.value = WeasyCapturePhase.paused;
   });
   Future<void> resume() => _run(() async {
     if (phase.value != WeasyCapturePhase.paused) throw StateError('A felvétel nincs szüneteltetve.');
     await camera.resumeVideoRecording();
-    try { _revision = await _voice.resumeAudio(); }
+    try { _revision = await _voice.resumeSharedRecognition(); }
     catch (_) { await camera.pauseVideoRecording(); rethrow; }
     phase.value = WeasyCapturePhase.recording;
   });
   Future<int> resetRecognition() => _run(() async {
     if (!_audioStarted) return _revision;
-    return _revision = await _voice.resetRecognition();
+    return _revision = await _voice.resetSharedRecognition();
   });
   Future<int> suspendRecognition() => _run(() async {
     if (!_audioStarted) return _revision;
-    return _revision = await _voice.suspendRecognition();
+    return _revision = await _voice.suspendSharedRecognition();
   });
   Future<String> finish() => _run(() async {
     if (phase.value == WeasyCapturePhase.complete && _outputPath != null) return _outputPath!;
     if (!hasPendingRecording) throw StateError('Nincs lezárható felvétel.');
     phase.value = WeasyCapturePhase.finalizing;
     try {
-      final operations = <Future<void>>[];
-      if (_silentPath == null && camera.value.isRecordingVideo) {
-        operations.add(camera.stopVideoRecording().then((file) { _silentPath = file.path; }));
+      if (_recordedPath == null && camera.value.isRecordingVideo) {
+        _recordedPath = (await camera.stopVideoRecording()).path;
       }
-      if (_audio == null && _audioStarted) {
-        operations.add(_voice.stopAudio().then((audio) {
-          _audio = audio; _audioStarted = false;
-          if (audio.warning != null) lastError = audio.warning;
-        }));
+      if (_audioStarted) {
+        await _voice.stopSharedRecognition();
+        _audioStarted = false;
       }
-      await Future.wait(operations, eagerError: false);
-      if (_silentPath == null || _audio == null) throw StateError('A felvétel egyik sávja hiányzik; az elérhető fájlokat megőriztük.');
-      _outputPath = await _voice.finalizeVideo(_silentPath!, _audio!);
+      if (_recordedPath == null) throw StateError('Nincs véglegesíthető videófájl.');
+      // Already muxed by CameraX with its own sample timestamps and pause handling.
+      // Verify tracks, but never re-encode, offset, stretch or re-mux this file.
+      await _voice.verifyRecordedVideo(_recordedPath!);
+      _outputPath = _recordedPath;
       phase.value = WeasyCapturePhase.complete;
       return _outputPath!;
     } catch (e) { lastError = e.toString(); phase.value = WeasyCapturePhase.failed; rethrow; }
@@ -128,13 +128,11 @@ class WeasyCaptureController with WidgetsBindingObserver {
   /// Call only after confirmed gallery save OR confirmed discard, with player disposed.
   Future<void> cleanupAfterDecision() => _run(() async {
     if (phase.value != WeasyCapturePhase.complete) throw StateError('Előbb véglegesítsd a videót.');
-    if (_audio != null) await _voice.deleteTemporary(_audio!.path);
-    if (_outputPath != null) await _voice.deleteTemporary(_outputPath!);
-    if (_silentPath != null) {
-      final silent = File(_silentPath!);
-      if (await silent.exists()) await silent.delete();
+    if (_recordedPath != null) {
+      final recorded = File(_recordedPath!);
+      if (await recorded.exists()) await recorded.delete();
     }
-    _audio = null; _silentPath = null; _outputPath = null; lastError = null;
+    _recordedPath = null; _outputPath = null; lastError = null;
     phase.value = WeasyCapturePhase.idle;
   });
   @override void didChangeAppLifecycleState(AppLifecycleState state) {

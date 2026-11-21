@@ -36,6 +36,7 @@ public final class WeasyVoicePlugin implements FlutterPlugin, ActivityAware,
     private EventChannel.EventSink sink;
     private MethodChannel.Result permissionResult;
     private CaptureAudio session;
+    private SharedRecognition shared;
     private boolean attached, stopping;
     private File directory;
 
@@ -56,6 +57,46 @@ public final class WeasyVoicePlugin implements FlutterPlugin, ActivityAware,
     @Override public void onMethodCall(MethodCall call, MethodChannel.Result result) {
         try {
             switch (call.method) {
+                case "startSharedRecognition": {
+                    if (!LocalModel.ready()) throw new Exception("A magyar modell nincs betöltve.");
+                    if (shared != null || session != null || stopping) throw new Exception("Már van aktív rögzítés.");
+                    SharedRecognition created = new SharedRecognition(context, this::emit);
+                    try { long revision = created.start(); shared = created; result.success(revision); }
+                    catch (Exception e) { created.stop(); throw e; }
+                    break;
+                }
+                case "pauseSharedRecognition": requireShared(); result.success(shared.pause()); break;
+                case "resumeSharedRecognition": requireShared(); result.success(shared.resume()); break;
+                case "resetSharedRecognition": requireShared(); result.success(shared.resetRecognition()); break;
+                case "suspendSharedRecognition": requireShared(); result.success(shared.suspendRecognition()); break;
+                case "stopSharedRecognition": {
+                    if (shared != null) { shared.stop(); shared = null; }
+                    result.success(null); break;
+                }
+                case "verifyRecordedVideo": {
+                    String path = call.argument("path");
+                    if (path == null) throw new Exception("Hiányzó videófájl.");
+                    files.execute(() -> {
+                        android.media.MediaExtractor extractor = new android.media.MediaExtractor();
+                        try {
+                            extractor.setDataSource(path);
+                            boolean audio = false, video = false;
+                            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                                String mime = extractor.getTrackFormat(i).getString(android.media.MediaFormat.KEY_MIME);
+                                if (mime == null) continue;
+                                extractor.selectTrack(i);
+                                boolean hasSample = extractor.getSampleTime() >= 0;
+                                extractor.unselectTrack(i);
+                                if (hasSample && mime.startsWith("audio/")) audio = true;
+                                if (hasSample && mime.startsWith("video/")) video = true;
+                            }
+                            if (!audio || !video) throw new Exception("A felvétel kép- vagy hangsávja hiányzik. A fájlt megőriztük.");
+                            ui.post(() -> { if (attached) result.success(null); });
+                        } catch (Exception e) { ui.post(() -> error(result, "VIDEO_TRACKS", e)); }
+                        finally { extractor.release(); }
+                    });
+                    break;
+                }
                 case "initialize": {
                     String asset = binding.getFlutterAssets().getAssetFilePathBySubpath("assets/ggml-base-q5_1.bin", "weasy_voice");
                     LocalModel.initialize(context, asset, (ready, message) -> {
@@ -78,7 +119,7 @@ public final class WeasyVoicePlugin implements FlutterPlugin, ActivityAware,
                     if (!LocalModel.ready()) throw new Exception("A magyar modell nincs betöltve.");
                     if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
                         throw new Exception("Hiányzó mikrofonengedély.");
-                    if (session != null || stopping) throw new Exception("Már van aktív hangrögzítés.");
+                    if (shared != null || session != null || stopping) throw new Exception("Már van aktív hangrögzítés.");
                     if (!directory.exists() && !directory.mkdirs()) throw new Exception("Nem hozható létre a hangkönyvtár.");
                     synchronized (OWNERS) {
                         if (microphoneOwner != null && microphoneOwner != this) throw new Exception("Másik Weasy-képernyő használja a mikrofont.");
@@ -142,6 +183,9 @@ public final class WeasyVoicePlugin implements FlutterPlugin, ActivityAware,
     private void requireSession() throws Exception {
         if (session == null || stopping) throw new Exception("Nincs elérhető aktív hangrögzítés.");
     }
+    private void requireShared() throws Exception {
+        if (shared == null) throw new Exception("Nincs aktív közös hangkövetés.");
+    }
     private File managedFile(String path) throws Exception {
         File file = new File(path).getCanonicalFile();
         String root = directory.getCanonicalPath() + File.separator;
@@ -169,6 +213,7 @@ public final class WeasyVoicePlugin implements FlutterPlugin, ActivityAware,
     @Override public void onDetachedFromEngine(FlutterPluginBinding b) {
         attached = false; sink = null; methods.setMethodCallHandler(null); stream.setStreamHandler(null);
         detachActivity();
+        if (shared != null) { shared.stop(); shared = null; }
         CaptureAudio current = session; session = null;
         if (current != null) {
             current.closeRecognizer();

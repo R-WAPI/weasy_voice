@@ -1,5 +1,32 @@
 # Weasy Voice – FlutterFlow integráció, Android próba
 
+## 0.2.0 – közös CameraX kép- és hangrögzítés
+
+A jelenlegi `WeasyCaptureController` a kamera saját hangos rögzítését használja.
+A felismerő ugyanennek a PCM-hangnak egy másolatát kapja a kódoló bemenetéről,
+külön mikrofonnyitás nélkül. A másolat korlátos sorban, háttérszálon alakul
+16 kHz-es monóvá. A mentett hang mintái és időbélyegei változatlanul kerülnek a
+CameraX kódolójába. A +40% erősítés továbbra is csak a felismerőre vonatkozik.
+
+A `finish()` már a CameraX által elkészített hangos MP4-et adja vissza, miután
+ellenőrizte, hogy kép- és hangsáv is van benne. Nincs utólagos saját AAC-kódolás,
+offset, sebességállítás vagy muxolás. A start/pause/resume/stop mindkét mentett
+sávját CameraX kezeli. Az alábbi történeti leírás néma kamera + külön PCM útvonala
+**nem az új vezérlő működése**; a régi alacsony szintű API csak kompatibilitásból maradt.
+
+A csomag tartalmaz egy átnevezett Flutter CameraX adaptert a `packages` alatt.
+CameraX 1.5.3-ra van rögzítve a verziófüggő hangmásoló bekötés miatt; részletek és
+upstream licenc: `packages/weasy_camera_android/WEASY_CHANGES.md`.
+FlutterFlow-ban továbbra is a `WeasyCaptureController.create` és
+`start/pause/resume/finish` API-t kell használni. A súgó/UI/formázás nem változott.
+Ne nyiss külön mikrofont és ne kapcsold ki a controller által létrehozott kamera hangját.
+
+Ez a kiadás telefonon még ellenőrizendő: rövid és kétperces felvétel eleje/vége,
+több szünet, külső mikrofon, galériamentés, valamint a beszédkövetés. A fordítás
+és az automatikus tesztek nem igazolnak önmagukban eszközön mért ajakszinkront.
+
+## Korábbi működés és háttér
+
 Magyar beszédfelismerés a helyi Whisper base-q5_1 modellel. Nem használ külső API-t vagy Android rendszerfelismerőt. A csomag a FlutterFlow-ban lévő felülethez készült; nem külön alkalmazás.
 
 ## Állapot és követelmények
